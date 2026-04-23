@@ -4,6 +4,7 @@
 
 - [Using Scripts](#using-scripts)
   - [Calling a Tengo Function from Go](#calling-a-tengo-function-from-go)
+  - [Exposing Go Functions to Tengo](#exposing-go-functions-to-tengo)
   - [Type Conversion Table](#type-conversion-table)
   - [User Types](#user-types)
 - [Sandbox Environments](#sandbox-environments)
@@ -167,6 +168,149 @@ re-compilation.
 - The function must be defined at the top level of the script.
 - For functions with multiple arguments, add one reserved variable per
   argument slot.
+
+### Exposing Go Functions to Tengo
+
+Any Go function can be made callable from a Tengo script by wrapping it in a
+`tengo.UserFunction` and registering it with `Script.Add` before compilation.
+
+```golang
+s := tengo.NewScript([]byte(`result := add(3, 4)`))
+
+s.Add("add", &tengo.UserFunction{
+    Name: "add",
+    Value: func(args ...tengo.Object) (tengo.Object, error) {
+        if len(args) != 2 {
+            return nil, tengo.ErrWrongNumArguments
+        }
+        x, ok := args[0].(tengo.Int)
+        if !ok {
+            return nil, tengo.ErrInvalidArgumentType{
+                Name: "first", Expected: "int", Found: args[0].TypeName(),
+            }
+        }
+        y, ok := args[1].(tengo.Int)
+        if !ok {
+            return nil, tengo.ErrInvalidArgumentType{
+                Name: "second", Expected: "int", Found: args[1].TypeName(),
+            }
+        }
+        return tengo.Int{Value: x.Value + y.Value}, nil
+    },
+})
+
+compiled, err := s.Compile()
+// ...
+if err := compiled.Run(); err != nil {
+    panic(err)
+}
+fmt.Println(compiled.Get("result").Int()) // 7
+```
+
+#### Returning Go values with `FromInterface`
+
+When the Go function works with native Go types (`map[string]interface{}`,
+`[]interface{}`, primitives, etc.) use `tengo.FromInterface` to convert them
+to `tengo.Object` values rather than building the Tengo types by hand.
+
+```golang
+var store = map[string]interface{}{
+    "host": "example.com",
+    "port": 8080,
+    "tags": []interface{}{"prod", "v2"},
+}
+
+s.Add("get_config", &tengo.UserFunction{
+    Name: "get_config",
+    Value: func(args ...tengo.Object) (tengo.Object, error) {
+        if len(args) != 1 {
+            return nil, tengo.ErrWrongNumArguments
+        }
+        key, ok := args[0].(*tengo.String)
+        if !ok {
+            return nil, tengo.ErrInvalidArgumentType{
+                Name: "first", Expected: "string", Found: args[0].TypeName(),
+            }
+        }
+        val, found := store[key.Value]
+        if !found {
+            return tengo.UndefinedValue, nil
+        }
+        obj, err := tengo.FromInterface(val)
+        if err != nil {
+            return &tengo.Error{Value: &tengo.String{Value: err.Error()}}, nil
+        }
+        return obj, nil
+    },
+})
+```
+
+`tengo.ToInterface(obj)` performs the reverse conversion — from a
+`tengo.Object` back to a plain Go value — which is useful when passing
+Tengo values into existing Go APIs.
+
+#### Error handling conventions
+
+There are two ways to signal failure from a Go function:
+
+1. **Return a Go `error`** — the VM propagates it as a runtime error and
+   the script halts (unless the call is wrapped in a Tengo error-check).
+
+2. **Return a `*tengo.Error` object** — the function succeeds at the VM
+   level but the script can inspect `result.is_error` or pattern-match on
+   the returned value. This mirrors the Tengo idiom of returning `{ok,
+   error}` pairs and is preferred when the failure is a domain error rather
+   than a programming mistake.
+
+```golang
+// Domain error (caller decides how to handle it):
+return &tengo.Error{Value: &tengo.String{Value: "key not found"}}, nil
+
+// Programming error (halts the VM):
+return nil, tengo.ErrWrongNumArguments
+```
+
+#### Returning multiple values
+
+Go functions return a single `tengo.Object`. There are two patterns for
+exposing multiple values depending on how the Tengo caller will consume them.
+
+**Return an `*Array`** when the caller will index into the result:
+
+```golang
+// In Go:
+return &tengo.Array{Value: []tengo.Object{
+    tengo.Int{Value: quotient},
+    tengo.Int{Value: remainder},
+}}, nil
+```
+
+```tengo
+// In Tengo — index into the result:
+res := divmod(17, 5)
+q := res[0]
+r := res[1]
+```
+
+**Return a `*MultiValue`** to support Tengo's multi-assignment destructuring
+syntax directly:
+
+```golang
+// In Go:
+return &tengo.MultiValue{Values: []tengo.Object{
+    tengo.Int{Value: quotient},
+    tengo.Int{Value: remainder},
+}}, nil
+```
+
+```tengo
+// In Tengo — destructures naturally:
+q, r := divmod(17, 5)
+```
+
+`*MultiValue` is the same internal type produced by `return a, b` in Tengo
+itself, so the two approaches are fully compatible from the caller's
+perspective.
 
 ### Type Conversion Table
 
