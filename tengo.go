@@ -244,6 +244,14 @@ func ToInterface(o Object) (res interface{}) {
 	return
 }
 
+// jsonNumber is satisfied by encoding/json.Number, allowing callers that use
+// json.Decoder.UseNumber() to pass the decoded map directly to FromInterface
+// without importing encoding/json in this package.
+type jsonNumber interface {
+	Int64() (int64, error)
+	Float64() (float64, error)
+}
+
 // FromInterface will attempt to convert an interface{} v to a Tengo Object
 func FromInterface(v interface{}) (Object, error) {
 	switch v := v.(type) {
@@ -269,6 +277,14 @@ func FromInterface(v interface{}) (Object, error) {
 		return Char{Value: rune(v)}, nil
 	case float64:
 		return Float{Value: v}, nil
+	case jsonNumber:
+		if n, err := v.Int64(); err == nil {
+			return Int{Value: n}, nil
+		}
+		if n, err := v.Float64(); err == nil {
+			return Float{Value: n}, nil
+		}
+		return nil, fmt.Errorf("cannot convert json.Number to object: %v", v)
 	case []byte:
 		if len(v) > MaxBytesLen {
 			return nil, ErrBytesLimit

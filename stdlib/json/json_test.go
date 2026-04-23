@@ -2,6 +2,7 @@ package json_test
 
 import (
 	gojson "encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/ganehag/tengo/v3"
@@ -11,6 +12,13 @@ import (
 
 type ARR = []interface{}
 type MAP = map[string]interface{}
+
+// Compile-time check: encoding/json.Number must satisfy tengo's jsonNumber interface.
+// If it ever stops doing so, the TestJSONNumber test will fail to compile here first.
+var _ interface {
+	Int64() (int64, error)
+	Float64() (float64, error)
+} = gojson.Number("")
 
 func TestJSON(t *testing.T) {
 	testJSONEncodeDecode(t, nil)
@@ -84,6 +92,34 @@ func TestDecode(t *testing.T) {
 	testDecodeError(t, `{"a:"b"}`)
 	testDecodeError(t, `{a":"b"}`)
 	testDecodeError(t, `{"a":"b":"c"}`)
+}
+
+// TestJSONNumber verifies that encoding/json.Number values — produced when
+// a caller uses json.Decoder.UseNumber() — survive the Tengo round-trip.
+func TestJSONNumber(t *testing.T) {
+	input := `{"count":42,"price":19.99,"big":7075984636689534001}`
+
+	var raw map[string]interface{}
+	dec := gojson.NewDecoder(strings.NewReader(input))
+	dec.UseNumber()
+	require.NoError(t, dec.Decode(&raw))
+
+	// Convert the Go map (containing json.Number values) to a Tengo object.
+	obj, err := tengo.FromInterface(raw)
+	require.NoError(t, err)
+
+	// Encode with the Tengo JSON encoder.
+	b, err := json.Encode(obj)
+	require.NoError(t, err)
+
+	// Decode back and verify the types and values.
+	a, err := json.Decode(b)
+	require.NoError(t, err)
+
+	m := a.(*tengo.Map).Value
+	require.Equal(t, tengo.Int{Value: 42}, m["count"])
+	require.Equal(t, tengo.Float{Value: 19.99}, m["price"])
+	require.Equal(t, tengo.Int{Value: 7075984636689534001}, m["big"])
 }
 
 func testDecodeError(t *testing.T, input string) {
