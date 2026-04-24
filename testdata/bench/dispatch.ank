@@ -1,0 +1,26 @@
+handlers = {
+    "add": func(x, y) { return x + y },
+    "mul": func(x, y) { return x * y },
+    "sub": func(x, y) { return x - y }
+}
+
+events = []
+n = 200000
+
+for i = 0; i < n; i++ {
+    op = "add"
+    if i % 3 == 1 {
+        op = "mul"
+    } else if i % 3 == 2 {
+        op = "sub"
+    }
+    events += {"op": op, "a": i, "b": i % 7}
+}
+
+out = 0
+for e in events {
+    fn = handlers[e.op]
+    out += fn(e.a, e.b)
+}
+
+println(out)

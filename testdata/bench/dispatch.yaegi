@@ -1,0 +1,37 @@
+package main
+
+import "fmt"
+
+func main() {
+	handlers := map[string]func(int, int) int{
+		"add": func(x, y int) int { return x + y },
+		"mul": func(x, y int) int { return x * y },
+		"sub": func(x, y int) int { return x - y },
+	}
+
+	events := make([]map[string]interface{}, 0, 200000)
+	n := 200000
+
+	for i := 0; i < n; i++ {
+		var op string
+		if i%3 == 0 {
+			op = "add"
+		} else if i%3 == 1 {
+			op = "mul"
+		} else {
+			op = "sub"
+		}
+		events = append(events, map[string]interface{}{
+			"op": op,
+			"a":  i,
+			"b":  i % 7,
+		})
+	}
+
+	out := 0
+	for _, e := range events {
+		fn := handlers[e["op"].(string)]
+		out += fn(e["a"].(int), e["b"].(int))
+	}
+	fmt.Println(out)
+}

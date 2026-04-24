@@ -1,0 +1,33 @@
+package main
+
+import "fmt"
+
+func main() {
+	records := make([]map[string]interface{}, 0, 100000)
+	n := 100000
+
+	for i := 0; i < n; i++ {
+		records = append(records, map[string]interface{}{
+			"id":     i,
+			"value":  (i * 19) % 500,
+			"active": i%3 == 0,
+		})
+	}
+
+	result := make([]map[string]interface{}, 0)
+
+	for _, r := range records {
+		if !r["active"].(bool) {
+			continue
+		}
+		if r["value"].(int) > 100 {
+			result = append(result, map[string]interface{}{
+				"id":    r["id"],
+				"score": r["value"].(int) * 2,
+			})
+		}
+	}
+
+	out := len(result)
+	fmt.Println(out)
+}

@@ -1,0 +1,32 @@
+textmod := import("text")
+
+fmt := import("fmt")
+
+text := ""
+n := 20000
+
+for i := 0; i < n; i++ {
+	text += "lorem ipsum dolor sit amet consectetur adipiscing elit "
+}
+
+words := textmod.split(text, " ")
+counts := {}
+
+for w in words {
+	if w == "" {
+		continue
+	}
+	if counts[w] == undefined {
+		counts[w] = 1
+	} else {
+		counts[w] += 1
+	}
+}
+
+out := 0
+for v in counts {
+	out += v
+}
+
+fmt.println(out)
+

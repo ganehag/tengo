@@ -1,0 +1,48 @@
+def score(order):
+    total = order["total"]
+    items = order["items"]
+    country = order["country"]
+    priority = order["priority"]
+
+    s = 0
+
+    if total > 1000:
+        s += 50
+    elif total > 250:
+        s += 20
+    else:
+        s += 5
+
+    if items > 10:
+        s += items * 2
+    else:
+        s += items
+
+    if country == "SE":
+        s += 7
+    elif country == "US":
+        s += 5
+    else:
+        s += 3
+
+    if priority:
+        s *= 2
+
+    return s
+
+orders = []
+n = 100000
+
+for i in range(n):
+    orders.append({
+        "total": (i * 37) % 1500,
+        "items": (i % 17) + 1,
+        "country": "SE" if i % 3 == 0 else ("US" if i % 3 == 1 else "DE"),
+        "priority": i % 11 == 0,
+    })
+
+out = 0
+for order in orders:
+    out += score(order)
+
+print(out)

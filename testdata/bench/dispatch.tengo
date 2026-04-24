@@ -1,0 +1,28 @@
+fmt := import("fmt")
+
+handlers := {
+	"add": func(x, y) { return x + y },
+	"mul": func(x, y) { return x * y },
+	"sub": func(x, y) { return x - y }
+}
+
+events := []
+n := 200000
+
+for i := 0; i < n; i++ {
+	op := i % 3 == 0 ? "add" : (i % 3 == 1 ? "mul" : "sub")
+	events = append(events, {
+		"op": op,
+		"a": i,
+		"b": i % 7
+	})
+}
+
+out := 0
+for e in events {
+	fn := handlers[e["op"]]
+	out += fn(e["a"], e["b"])
+}
+
+fmt.println(out)
+
