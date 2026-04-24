@@ -51,22 +51,22 @@ fmt.println(sum("", [1, 2, 3]))  // "123"
 
 ## Benchmark
 
-| | fib(35) | fibt(35) | score orders | word count | moving avg | filter/map | dispatch | Language (Type) |
-| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | :---: |
-| [**Tengo**](https://github.com/tengolang/tengo) | `1,466ms` | `1ms` | `64ms` | `1,112ms` | `63ms` | `45ms` | `90ms` | Tengo (VM) |
-| [go-lua](https://github.com/Shopify/go-lua) | `1,652ms` | `1ms` | `121ms` | - | `71ms` | `79ms` | `178ms` | Lua (VM) |
-| [GopherLua](https://github.com/yuin/gopher-lua) | `1,931ms` | `1ms` | `133ms` | `1,111ms` | `62ms` | `102ms` | `199ms` | Lua (VM) |
-| [goja](https://github.com/dop251/goja) | `2,534ms` | `1ms` | `148ms` | `1,155ms` | `164ms` | `121ms` | `243ms` | JavaScript (VM) |
-| [starlark-go](https://github.com/google/starlark-go) | `4,194ms` | `1ms` | `102ms` | `1,066ms` | `75ms` | `57ms` | `138ms` | Starlark (Interpreter) |
-| [gpython](https://github.com/go-python/gpython) | `7,178ms` | `2ms` | `111ms` | `1,131ms` | `102ms` | `54ms` | `165ms` | Python (Interpreter) |
-| [Yaegi](https://github.com/traefik/yaegi) | `8,894ms` | `5ms` | `149ms` | `946ms` | `38ms` | `62ms` | - | Yaegi (Interpreter) |
-| [otto](https://github.com/robertkrimen/otto) | `36,165ms` | `5ms` | - | - | - | - | - | JavaScript (Interpreter) |
-| [Anko](https://github.com/mattn/anko) | `38,740ms` | `2ms` | `467ms` | `1,247ms` | `216ms` | `118ms` | `563ms` | Anko (Interpreter) |
-| - | - | - | - | - | - | - | - | - |
-| Go | - | - | - | - | - | - | - | Go (Native) |
-| Lua | `566ms` | `1ms` | `38ms` | `1,466ms` | `22ms` | `34ms` | `63ms` | Lua (Native) |
-| Python | `1,208ms` | `5ms` | `55ms` | `22ms` | `38ms` | `45ms` | `90ms` | Python 2 (Native) |
-| Python | `785ms` | `9ms` | `53ms` | `2,107ms` | `49ms` | `41ms` | `82ms` | Python 3 (Native) |
+| | fib(35) | score orders | word count | moving avg | filter/map | dispatch |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: |
+| [**Tengo**](https://github.com/tengolang/tengo) | `1,491ms` | `66ms` | `1,089ms` | `62ms` | `45ms` | `88ms` |
+| [go-lua](https://github.com/Shopify/go-lua) | `1,647ms` | `121ms` | `955ms` | `72ms` | `79ms` | `171ms` |
+| [GopherLua](https://github.com/yuin/gopher-lua) | `1,870ms` | `134ms` | `1,068ms` | `63ms` | `108ms` | `201ms` |
+| [goja](https://github.com/dop251/goja) | `2,534ms` | `153ms` | `1,184ms` | `225ms` | `126ms` | `291ms` |
+| [starlark-go](https://github.com/google/starlark-go) | `4,215ms` | `102ms` | `1,095ms` | `73ms` | `59ms` | `141ms` |
+| [gpython](https://github.com/go-python/gpython) | `7,192ms` | `113ms` | `1,128ms` | `103ms` | `56ms` | `165ms` |
+| [Yaegi](https://github.com/traefik/yaegi) | `8,832ms` | `147ms` | `1,069ms` | `38ms` | `61ms` | `268ms` |
+| [otto](https://github.com/robertkrimen/otto) | `36,474ms` | `713ms` | `1,498ms` | `751ms` | `435ms` | `1,274ms` |
+| [Anko](https://github.com/mattn/anko) | `38,704ms` | `466ms` | `1,255ms` | `218ms` | `118ms` | `565ms` |
+| - | - | - | - | - | - | - |
+| Go | `55ms` | `26ms` | `28ms` | `24ms` | `23ms` | `27ms` |
+| Lua | `592ms` | `39ms` | `1,468ms` | `22ms` | `34ms` | `63ms` |
+| Python 2 | `1,206ms` | `57ms` | `23ms` | `41ms` | `47ms` | `88ms` |
+| Python 3 | `781ms` | `53ms` | `2,117ms` | `49ms` | `43ms` | `82ms` |
 
 _* [fib(35)](https://github.com/tengolang/tengobench/blob/master/testdata/bench/fib.tengo):
 Fibonacci(35)_  
