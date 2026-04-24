@@ -1216,6 +1216,22 @@ func (v *VM) IsStackEmpty() bool {
 	return v.sp == 0
 }
 
+// Constants returns the constants pool shared across all VMs running the same bytecode.
+func (v *VM) Constants() []Object {
+	return v.constants
+}
+
+// SourceFileSet returns the source file set used for position reporting.
+func (v *VM) SourceFileSet() *parser.SourceFileSet {
+	return v.fileSet
+}
+
+// VMGlobals returns the global variable slice. The slice is shared with
+// child VMs (e.g. coroutines) so writes are visible to all VMs using it.
+func (v *VM) VMGlobals() []Object {
+	return v.globals
+}
+
 func indexAssign(dst, src Object, selectors []Object) error {
 	numSel := len(selectors)
 	for sidx := numSel - 1; sidx > 0; sidx-- {
