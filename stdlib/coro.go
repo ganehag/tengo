@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"sync"
 
-	tengo "github.com/ganehag/tengo/v3"
-	"github.com/ganehag/tengo/v3/parser"
+	tengo "github.com/tengolang/tengo/v3"
+	"github.com/tengolang/tengo/v3/parser"
 )
 
 // errCoroClosed is the internal signal propagated when a coroutine is closed

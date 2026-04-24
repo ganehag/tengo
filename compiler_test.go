@@ -8,10 +8,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/ganehag/tengo/v3"
-	"github.com/ganehag/tengo/v3/parser"
-	"github.com/ganehag/tengo/v3/require"
-	"github.com/ganehag/tengo/v3/stdlib"
+	"github.com/tengolang/tengo/v3"
+	"github.com/tengolang/tengo/v3/parser"
+	"github.com/tengolang/tengo/v3/require"
+	"github.com/tengolang/tengo/v3/stdlib"
 )
 
 func TestCompiler_Compile(t *testing.T) {

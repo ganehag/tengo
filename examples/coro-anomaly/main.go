@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ganehag/tengo/v3"
-	"github.com/ganehag/tengo/v3/stdlib"
+	"github.com/tengolang/tengo/v3"
+	"github.com/tengolang/tengo/v3/stdlib"
 )
 
 const script = `

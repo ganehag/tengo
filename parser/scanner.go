@@ -5,7 +5,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/ganehag/tengo/v3/token"
+	"github.com/tengolang/tengo/v3/token"
 )
 
 // byte order mark

@@ -3,7 +3,7 @@
 //
 // The version string can be overridden at link time for CI/release pipelines:
 //
-//	go build -ldflags "-X github.com/ganehag/tengo/v3/internal/buildinfo.version=v3.x.y"
+//	go build -ldflags "-X github.com/tengolang/tengo/v3/internal/buildinfo.version=v3.x.y"
 package buildinfo
 
 import (

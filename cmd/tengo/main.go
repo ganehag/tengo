@@ -11,10 +11,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ganehag/tengo/v3"
-	"github.com/ganehag/tengo/v3/internal/buildinfo"
-	"github.com/ganehag/tengo/v3/parser"
-	"github.com/ganehag/tengo/v3/stdlib"
+	"github.com/tengolang/tengo/v3"
+	"github.com/tengolang/tengo/v3/internal/buildinfo"
+	"github.com/tengolang/tengo/v3/parser"
+	"github.com/tengolang/tengo/v3/stdlib"
 )
 
 const (

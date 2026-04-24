@@ -3,9 +3,9 @@ package stdlib_test
 import (
 	"testing"
 
-	"github.com/ganehag/tengo/v3"
-	"github.com/ganehag/tengo/v3/require"
-	"github.com/ganehag/tengo/v3/stdlib"
+	"github.com/tengolang/tengo/v3"
+	"github.com/tengolang/tengo/v3/require"
+	"github.com/tengolang/tengo/v3/stdlib"
 )
 
 // runCoroVar compiles and runs src with the coro module, returns the named variable.

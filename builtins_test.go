@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/ganehag/tengo/v3"
+	"github.com/tengolang/tengo/v3"
 )
 
 func lookupBuiltin(name string) func(...tengo.Object) (tengo.Object, error) {

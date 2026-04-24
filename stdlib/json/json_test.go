@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ganehag/tengo/v3"
-	"github.com/ganehag/tengo/v3/require"
-	"github.com/ganehag/tengo/v3/stdlib/json"
+	"github.com/tengolang/tengo/v3"
+	"github.com/tengolang/tengo/v3/require"
+	"github.com/tengolang/tengo/v3/stdlib/json"
 )
 
 type ARR = []interface{}

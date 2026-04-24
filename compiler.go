@@ -10,8 +10,8 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/ganehag/tengo/v3/parser"
-	"github.com/ganehag/tengo/v3/token"
+	"github.com/tengolang/tengo/v3/parser"
+	"github.com/tengolang/tengo/v3/token"
 )
 
 // compilationScope represents a compiled instructions and the last two

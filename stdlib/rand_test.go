@@ -4,8 +4,8 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/ganehag/tengo/v3"
-	"github.com/ganehag/tengo/v3/require"
+	"github.com/tengolang/tengo/v3"
+	"github.com/tengolang/tengo/v3/require"
 )
 
 func TestRand(t *testing.T) {

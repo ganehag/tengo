@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	tengo "github.com/ganehag/tengo/v3"
-	"github.com/ganehag/tengo/v3/parser"
+	tengo "github.com/tengolang/tengo/v3"
+	"github.com/tengolang/tengo/v3/parser"
 )
 
 func benchScript(b *testing.B, src string) {

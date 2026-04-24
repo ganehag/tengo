@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/ganehag/tengo/v3/parser"
+	"github.com/tengolang/tengo/v3/parser"
 )
 
 // Script can simplify compilation and execution of embedded scripts.

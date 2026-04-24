@@ -1,7 +1,7 @@
 package stdlib
 
 import (
-	"github.com/ganehag/tengo/v3"
+	"github.com/tengolang/tengo/v3"
 )
 
 // BuiltinModules are builtin type standard library modules.

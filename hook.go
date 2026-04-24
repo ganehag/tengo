@@ -1,6 +1,6 @@
 package tengo
 
-import "github.com/ganehag/tengo/v3/parser"
+import "github.com/tengolang/tengo/v3/parser"
 
 // HookEvent identifies which VM event triggered a hook.
 type HookEvent int

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ganehag/tengo/v3"
+	"github.com/tengolang/tengo/v3"
 )
 
 func Example() {

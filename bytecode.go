@@ -6,7 +6,7 @@ import (
 	"io"
 	"reflect"
 
-	"github.com/ganehag/tengo/v3/parser"
+	"github.com/tengolang/tengo/v3/parser"
 )
 
 // Bytecode is a compiled instructions and constants.

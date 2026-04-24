@@ -3,7 +3,7 @@ package stdlib
 import (
 	"fmt"
 
-	"github.com/ganehag/tengo/v3"
+	"github.com/tengolang/tengo/v3"
 )
 
 var fmtModule = map[string]tengo.Object{
