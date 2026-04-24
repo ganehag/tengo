@@ -111,20 +111,29 @@ func TestParseArray(t *testing.T) {
 				p(1, 3)))
 	})
 
-	expectParseError(t, `[1, 2, 3,]`)
-	expectParseError(t, `
+	expectParse(t, `[1, 2, 3,]`, func(p pfn) []Stmt {
+		return stmts(exprStmt(arrayLit(p(1, 1), p(1, 10),
+			intLit(1, p(1, 2)), intLit(2, p(1, 5)), intLit(3, p(1, 8)))))
+	})
+	expectParse(t, `
 [
 	1,
 	2,
 	3,
-]`)
-	expectParseError(t, `
+]`, func(p pfn) []Stmt {
+		return stmts(exprStmt(arrayLit(p(2, 1), p(6, 1),
+			intLit(1, p(3, 2)), intLit(2, p(4, 2)), intLit(3, p(5, 2)))))
+	})
+	expectParse(t, `
 [
 	1,
 	2,
 	3,
 
-]`)
+]`, func(p pfn) []Stmt {
+		return stmts(exprStmt(arrayLit(p(2, 1), p(7, 1),
+			intLit(1, p(3, 2)), intLit(2, p(4, 2)), intLit(3, p(5, 2)))))
+	})
 	expectParseError(t, `[1, 2, 3, ,]`)
 }
 
@@ -1250,18 +1259,29 @@ func TestParseMap(t *testing.T) {
 					"key3", p(5, 2), p(5, 6), boolLit(true, p(5, 8))))))
 	})
 
-	expectParseError(t, `
+	expectParse(t, `
 {
 	key1: 1,
 	key2: "2",
 	key3: true,
-}`) // unlike Go, trailing comma for the last element is illegal
-
-	expectParseError(t, `{ key1: 1, }`)
-	expectParseError(t, `{
+}`, func(p pfn) []Stmt {
+		return stmts(exprStmt(mapLit(p(2, 1), p(6, 1),
+			mapElementLit("key1", p(3, 2), p(3, 6), intLit(1, p(3, 8))),
+			mapElementLit("key2", p(4, 2), p(4, 6), stringLit("2", p(4, 8))),
+			mapElementLit("key3", p(5, 2), p(5, 6), boolLit(true, p(5, 8))))))
+	})
+	expectParse(t, `{ key1: 1, }`, func(p pfn) []Stmt {
+		return stmts(exprStmt(mapLit(p(1, 1), p(1, 12),
+			mapElementLit("key1", p(1, 3), p(1, 7), intLit(1, p(1, 9))))))
+	})
+	expectParse(t, `{
 key1: 1,
 key2: 2,
-}`)
+}`, func(p pfn) []Stmt {
+		return stmts(exprStmt(mapLit(p(1, 1), p(4, 1),
+			mapElementLit("key1", p(2, 1), p(2, 5), intLit(1, p(2, 7))),
+			mapElementLit("key2", p(3, 1), p(3, 5), intLit(2, p(3, 7))))))
+	})
 }
 
 func TestParsePrecedence(t *testing.T) {

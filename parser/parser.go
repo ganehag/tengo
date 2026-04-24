@@ -301,7 +301,6 @@ func (p *Parser) expectComma(closing token.Token, want string) bool {
 		p.next()
 
 		if p.token == closing {
-			p.errorExpected(p.pos, want)
 			return false
 		}
 		return true
