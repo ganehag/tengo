@@ -144,11 +144,18 @@ func (v *VM) Run() (err error) {
 }
 
 func (v *VM) run() {
+	// Hoist hot fields to locals so the compiler can keep them in registers
+	// across the dispatch loop. Flush back to the struct at every exit point
+	// and at frame switches (OpCall/OpReturn).
+	ip := v.ip
+	sp := v.sp
+	curInsts := v.curInsts
+
 	for atomic.LoadInt64(&v.aborting) == 0 && atomic.LoadInt64(&v.pausing) == 0 {
-		v.ip++
+		ip++
 
 		if v.hookMask&HookMaskLine != 0 {
-			pos := v.fileSet.Position(v.curFrame.fn.SourcePos(v.ip))
+			pos := v.fileSet.Position(v.curFrame.fn.SourcePos(ip))
 			if pos.Line != v.lastLine {
 				v.lastLine = pos.Line
 				v.hookFunc(v, HookInfo{
@@ -159,81 +166,87 @@ func (v *VM) run() {
 			}
 		}
 
-		switch v.curInsts[v.ip] {
+		switch curInsts[ip] {
 		case parser.OpConstant:
-			v.ip += 2
-			cidx := int(v.curInsts[v.ip]) | int(v.curInsts[v.ip-1])<<8
+			ip += 2
+			cidx := int(curInsts[ip]) | int(curInsts[ip-1])<<8
 
-			v.stack[v.sp] = v.constants[cidx]
-			v.sp++
+			v.stack[sp] = v.constants[cidx]
+			sp++
 		case parser.OpNull:
-			v.stack[v.sp] = UndefinedValue
-			v.sp++
+			v.stack[sp] = UndefinedValue
+			sp++
 		case parser.OpBinaryOp:
-			v.ip++
-			right := v.stack[v.sp-1]
-			left := v.stack[v.sp-2]
-			tok := token.Token(v.curInsts[v.ip])
+			ip++
+			right := v.stack[sp-1]
+			left := v.stack[sp-2]
+			tok := token.Token(curInsts[ip])
 			res, e := left.BinaryOp(tok, right)
 			if e != nil {
-				v.sp -= 2
+				sp -= 2
 				if e == ErrInvalidOperator {
 					v.err = fmt.Errorf("invalid operation: %s %s %s",
 						left.TypeName(), tok.String(), right.TypeName())
+					v.ip = ip
+					v.sp = sp
 					return
 				}
 				v.err = e
+				v.ip = ip
+				v.sp = sp
 				return
 			}
 
 			v.allocs--
 			if v.allocs == 0 {
 				v.err = ErrObjectAllocLimit
+				v.ip = ip
+				v.sp = sp
 				return
 			}
 
-			v.stack[v.sp-2] = res
-			v.sp--
+			v.stack[sp-2] = res
+			sp--
 		case parser.OpEqual:
-			right := v.stack[v.sp-1]
-			left := v.stack[v.sp-2]
-			v.sp -= 2
+			right := v.stack[sp-1]
+			left := v.stack[sp-2]
+			sp -= 2
 			if left.Equals(right) {
-				v.stack[v.sp] = TrueValue
+				v.stack[sp] = TrueValue
 			} else {
-				v.stack[v.sp] = FalseValue
+				v.stack[sp] = FalseValue
 			}
-			v.sp++
+			sp++
 		case parser.OpNotEqual:
-			right := v.stack[v.sp-1]
-			left := v.stack[v.sp-2]
-			v.sp -= 2
+			right := v.stack[sp-1]
+			left := v.stack[sp-2]
+			sp -= 2
 			if left.Equals(right) {
-				v.stack[v.sp] = FalseValue
+				v.stack[sp] = FalseValue
 			} else {
-				v.stack[v.sp] = TrueValue
+				v.stack[sp] = TrueValue
 			}
-			v.sp++
+			sp++
 		case parser.OpPop:
-			v.sp--
+			sp--
 		case parser.OpTrue:
-			v.stack[v.sp] = TrueValue
-			v.sp++
+			v.stack[sp] = TrueValue
+			sp++
 		case parser.OpFalse:
-			v.stack[v.sp] = FalseValue
-			v.sp++
+			v.stack[sp] = FalseValue
+			sp++
 		case parser.OpLNot:
-			operand := v.stack[v.sp-1]
-			v.sp--
+			operand := v.stack[sp-1]
+			sp--
 			if operand.IsFalsy() {
-				v.stack[v.sp] = TrueValue
+				v.stack[sp] = TrueValue
 			} else {
-				v.stack[v.sp] = FalseValue
+				v.stack[sp] = FalseValue
 			}
-			v.sp++
+			sp++
 		case parser.OpBComplement:
-			operand := v.stack[v.sp-1]
-			v.sp--
+			operand := v.stack[sp-1]
+			sp--
 
 			switch x := operand.(type) {
 			case Int:
@@ -241,10 +254,12 @@ func (v *VM) run() {
 				v.allocs--
 				if v.allocs == 0 {
 					v.err = ErrObjectAllocLimit
+					v.ip = ip
+					v.sp = sp
 					return
 				}
-				v.stack[v.sp] = res
-				v.sp++
+				v.stack[sp] = res
+				sp++
 			case *Bytes:
 				res := make([]byte, len(x.Value))
 				for i, b := range x.Value {
@@ -254,18 +269,22 @@ func (v *VM) run() {
 				v.allocs--
 				if v.allocs == 0 {
 					v.err = ErrObjectAllocLimit
+					v.ip = ip
+					v.sp = sp
 					return
 				}
-				v.stack[v.sp] = obj
-				v.sp++
+				v.stack[sp] = obj
+				sp++
 			default:
 				v.err = fmt.Errorf("invalid operation: ^%s",
 					operand.TypeName())
+				v.ip = ip
+				v.sp = sp
 				return
 			}
 		case parser.OpMinus:
-			operand := v.stack[v.sp-1]
-			v.sp--
+			operand := v.stack[sp-1]
+			sp--
 
 			switch x := operand.(type) {
 			case Int:
@@ -273,129 +292,143 @@ func (v *VM) run() {
 				v.allocs--
 				if v.allocs == 0 {
 					v.err = ErrObjectAllocLimit
+					v.ip = ip
+					v.sp = sp
 					return
 				}
-				v.stack[v.sp] = res
-				v.sp++
+				v.stack[sp] = res
+				sp++
 			case Float:
 				var res Object = Float{Value: -x.Value}
 				v.allocs--
 				if v.allocs == 0 {
 					v.err = ErrObjectAllocLimit
+					v.ip = ip
+					v.sp = sp
 					return
 				}
-				v.stack[v.sp] = res
-				v.sp++
+				v.stack[sp] = res
+				sp++
 			default:
 				v.err = fmt.Errorf("invalid operation: -%s",
 					operand.TypeName())
+				v.ip = ip
+				v.sp = sp
 				return
 			}
 		case parser.OpJumpFalsy:
-			v.ip += 4
-			v.sp--
-			if v.stack[v.sp].IsFalsy() {
-				pos := int(v.curInsts[v.ip]) | int(v.curInsts[v.ip-1])<<8 | int(v.curInsts[v.ip-2])<<16 | int(v.curInsts[v.ip-3])<<24
-				v.ip = pos - 1
+			ip += 4
+			sp--
+			if v.stack[sp].IsFalsy() {
+				pos := int(curInsts[ip]) | int(curInsts[ip-1])<<8 | int(curInsts[ip-2])<<16 | int(curInsts[ip-3])<<24
+				ip = pos - 1
 			}
 		case parser.OpAndJump:
-			v.ip += 4
-			if v.stack[v.sp-1].IsFalsy() {
-				pos := int(v.curInsts[v.ip]) | int(v.curInsts[v.ip-1])<<8 | int(v.curInsts[v.ip-2])<<16 | int(v.curInsts[v.ip-3])<<24
-				v.ip = pos - 1
+			ip += 4
+			if v.stack[sp-1].IsFalsy() {
+				pos := int(curInsts[ip]) | int(curInsts[ip-1])<<8 | int(curInsts[ip-2])<<16 | int(curInsts[ip-3])<<24
+				ip = pos - 1
 			} else {
-				v.sp--
+				sp--
 			}
 		case parser.OpOrJump:
-			v.ip += 4
-			if v.stack[v.sp-1].IsFalsy() {
-				v.sp--
+			ip += 4
+			if v.stack[sp-1].IsFalsy() {
+				sp--
 			} else {
-				pos := int(v.curInsts[v.ip]) | int(v.curInsts[v.ip-1])<<8 | int(v.curInsts[v.ip-2])<<16 | int(v.curInsts[v.ip-3])<<24
-				v.ip = pos - 1
+				pos := int(curInsts[ip]) | int(curInsts[ip-1])<<8 | int(curInsts[ip-2])<<16 | int(curInsts[ip-3])<<24
+				ip = pos - 1
 			}
 		case parser.OpJump:
-			pos := int(v.curInsts[v.ip+4]) | int(v.curInsts[v.ip+3])<<8 | int(v.curInsts[v.ip+2])<<16 | int(v.curInsts[v.ip+1])<<24
-			v.ip = pos - 1
+			pos := int(curInsts[ip+4]) | int(curInsts[ip+3])<<8 | int(curInsts[ip+2])<<16 | int(curInsts[ip+1])<<24
+			ip = pos - 1
 		case parser.OpSetGlobal:
-			v.ip += 2
-			v.sp--
-			globalIndex := int(v.curInsts[v.ip]) | int(v.curInsts[v.ip-1])<<8
-			v.globals[globalIndex] = unwrapMultiValue(v.stack[v.sp])
+			ip += 2
+			sp--
+			globalIndex := int(curInsts[ip]) | int(curInsts[ip-1])<<8
+			v.globals[globalIndex] = unwrapMultiValue(v.stack[sp])
 		case parser.OpSetSelGlobal:
-			v.ip += 3
-			globalIndex := int(v.curInsts[v.ip-1]) | int(v.curInsts[v.ip-2])<<8
-			numSelectors := int(v.curInsts[v.ip])
+			ip += 3
+			globalIndex := int(curInsts[ip-1]) | int(curInsts[ip-2])<<8
+			numSelectors := int(curInsts[ip])
 
 			// selectors and RHS value
 			selectors := make([]Object, numSelectors)
 			for i := 0; i < numSelectors; i++ {
-				selectors[i] = v.stack[v.sp-numSelectors+i]
+				selectors[i] = v.stack[sp-numSelectors+i]
 			}
-			val := v.stack[v.sp-numSelectors-1]
-			v.sp -= numSelectors + 1
+			val := v.stack[sp-numSelectors-1]
+			sp -= numSelectors + 1
 			e := indexAssign(v.globals[globalIndex], val, selectors)
 			if e != nil {
 				v.err = e
+				v.ip = ip
+				v.sp = sp
 				return
 			}
 		case parser.OpGetGlobal:
-			v.ip += 2
-			globalIndex := int(v.curInsts[v.ip]) | int(v.curInsts[v.ip-1])<<8
+			ip += 2
+			globalIndex := int(curInsts[ip]) | int(curInsts[ip-1])<<8
 			val := v.globals[globalIndex]
-			v.stack[v.sp] = val
-			v.sp++
+			v.stack[sp] = val
+			sp++
 		case parser.OpArray:
-			v.ip += 2
-			numElements := int(v.curInsts[v.ip]) | int(v.curInsts[v.ip-1])<<8
+			ip += 2
+			numElements := int(curInsts[ip]) | int(curInsts[ip-1])<<8
 
 			var elements []Object
-			for i := v.sp - numElements; i < v.sp; i++ {
+			for i := sp - numElements; i < sp; i++ {
 				elements = append(elements, v.stack[i])
 			}
-			v.sp -= numElements
+			sp -= numElements
 
 			var arr Object = &Array{Value: elements}
 			v.allocs--
 			if v.allocs == 0 {
 				v.err = ErrObjectAllocLimit
+				v.ip = ip
+				v.sp = sp
 				return
 			}
 
-			v.stack[v.sp] = arr
-			v.sp++
+			v.stack[sp] = arr
+			sp++
 		case parser.OpMap:
-			v.ip += 2
-			numElements := int(v.curInsts[v.ip]) | int(v.curInsts[v.ip-1])<<8
+			ip += 2
+			numElements := int(curInsts[ip]) | int(curInsts[ip-1])<<8
 			kv := make(map[string]Object, numElements)
-			for i := v.sp - numElements; i < v.sp; i += 2 {
+			for i := sp - numElements; i < sp; i += 2 {
 				key := v.stack[i]
 				value := v.stack[i+1]
 				kv[key.(*String).Value] = value
 			}
-			v.sp -= numElements
+			sp -= numElements
 
 			var m Object = &Map{Value: kv}
 			v.allocs--
 			if v.allocs == 0 {
 				v.err = ErrObjectAllocLimit
+				v.ip = ip
+				v.sp = sp
 				return
 			}
-			v.stack[v.sp] = m
-			v.sp++
+			v.stack[sp] = m
+			sp++
 		case parser.OpError:
-			value := v.stack[v.sp-1]
+			value := v.stack[sp-1]
 			var e Object = &Error{
 				Value: value,
 			}
 			v.allocs--
 			if v.allocs == 0 {
 				v.err = ErrObjectAllocLimit
+				v.ip = ip
+				v.sp = sp
 				return
 			}
-			v.stack[v.sp-1] = e
+			v.stack[sp-1] = e
 		case parser.OpImmutable:
-			value := v.stack[v.sp-1]
+			value := v.stack[sp-1]
 			switch value := value.(type) {
 			case *Array:
 				var immutableArray Object = &ImmutableArray{
@@ -404,9 +437,11 @@ func (v *VM) run() {
 				v.allocs--
 				if v.allocs == 0 {
 					v.err = ErrObjectAllocLimit
+					v.ip = ip
+					v.sp = sp
 					return
 				}
-				v.stack[v.sp-1] = immutableArray
+				v.stack[sp-1] = immutableArray
 			case *Map:
 				var immutableMap Object = &ImmutableMap{
 					Value: value.Value,
@@ -414,39 +449,47 @@ func (v *VM) run() {
 				v.allocs--
 				if v.allocs == 0 {
 					v.err = ErrObjectAllocLimit
+					v.ip = ip
+					v.sp = sp
 					return
 				}
-				v.stack[v.sp-1] = immutableMap
+				v.stack[sp-1] = immutableMap
 			}
 		case parser.OpIndex:
-			index := v.stack[v.sp-1]
-			left := v.stack[v.sp-2]
-			v.sp -= 2
+			index := v.stack[sp-1]
+			left := v.stack[sp-2]
+			sp -= 2
 
 			val, err := left.IndexGet(index)
 			if err != nil {
 				if err == ErrNotIndexable {
 					v.err = fmt.Errorf("not indexable: %s", index.TypeName())
+					v.ip = ip
+					v.sp = sp
 					return
 				}
 				if err == ErrInvalidIndexType {
 					v.err = fmt.Errorf("invalid index type: %s",
 						index.TypeName())
+					v.ip = ip
+					v.sp = sp
 					return
 				}
 				v.err = err
+				v.ip = ip
+				v.sp = sp
 				return
 			}
 			if val == nil {
 				val = UndefinedValue
 			}
-			v.stack[v.sp] = val
-			v.sp++
+			v.stack[sp] = val
+			sp++
 		case parser.OpSliceIndex:
-			high := v.stack[v.sp-1]
-			low := v.stack[v.sp-2]
-			left := v.stack[v.sp-3]
-			v.sp -= 3
+			high := v.stack[sp-1]
+			low := v.stack[sp-2]
+			left := v.stack[sp-3]
+			sp -= 3
 
 			var lowIdx int64
 			if low != UndefinedValue {
@@ -455,6 +498,8 @@ func (v *VM) run() {
 				} else {
 					v.err = fmt.Errorf("invalid slice index type: %s",
 						low.TypeName())
+					v.ip = ip
+					v.sp = sp
 					return
 				}
 			}
@@ -470,11 +515,15 @@ func (v *VM) run() {
 				} else {
 					v.err = fmt.Errorf("invalid slice index type: %s",
 						high.TypeName())
+					v.ip = ip
+					v.sp = sp
 					return
 				}
 				if lowIdx > highIdx {
 					v.err = fmt.Errorf("invalid slice index: %d > %d",
 						lowIdx, highIdx)
+					v.ip = ip
+					v.sp = sp
 					return
 				}
 				if lowIdx < 0 {
@@ -493,10 +542,12 @@ func (v *VM) run() {
 				v.allocs--
 				if v.allocs == 0 {
 					v.err = ErrObjectAllocLimit
+					v.ip = ip
+					v.sp = sp
 					return
 				}
-				v.stack[v.sp] = val
-				v.sp++
+				v.stack[sp] = val
+				sp++
 			case *ImmutableArray:
 				numElements := int64(len(left.Value))
 				var highIdx int64
@@ -507,11 +558,15 @@ func (v *VM) run() {
 				} else {
 					v.err = fmt.Errorf("invalid slice index type: %s",
 						high.TypeName())
+					v.ip = ip
+					v.sp = sp
 					return
 				}
 				if lowIdx > highIdx {
 					v.err = fmt.Errorf("invalid slice index: %d > %d",
 						lowIdx, highIdx)
+					v.ip = ip
+					v.sp = sp
 					return
 				}
 				if lowIdx < 0 {
@@ -530,10 +585,12 @@ func (v *VM) run() {
 				v.allocs--
 				if v.allocs == 0 {
 					v.err = ErrObjectAllocLimit
+					v.ip = ip
+					v.sp = sp
 					return
 				}
-				v.stack[v.sp] = val
-				v.sp++
+				v.stack[sp] = val
+				sp++
 			case *String:
 				numElements := int64(len(left.Value))
 				var highIdx int64
@@ -544,11 +601,15 @@ func (v *VM) run() {
 				} else {
 					v.err = fmt.Errorf("invalid slice index type: %s",
 						high.TypeName())
+					v.ip = ip
+					v.sp = sp
 					return
 				}
 				if lowIdx > highIdx {
 					v.err = fmt.Errorf("invalid slice index: %d > %d",
 						lowIdx, highIdx)
+					v.ip = ip
+					v.sp = sp
 					return
 				}
 				if lowIdx < 0 {
@@ -567,10 +628,12 @@ func (v *VM) run() {
 				v.allocs--
 				if v.allocs == 0 {
 					v.err = ErrObjectAllocLimit
+					v.ip = ip
+					v.sp = sp
 					return
 				}
-				v.stack[v.sp] = val
-				v.sp++
+				v.stack[sp] = val
+				sp++
 			case *Bytes:
 				numElements := int64(len(left.Value))
 				var highIdx int64
@@ -581,11 +644,15 @@ func (v *VM) run() {
 				} else {
 					v.err = fmt.Errorf("invalid slice index type: %s",
 						high.TypeName())
+					v.ip = ip
+					v.sp = sp
 					return
 				}
 				if lowIdx > highIdx {
 					v.err = fmt.Errorf("invalid slice index: %d > %d",
 						lowIdx, highIdx)
+					v.ip = ip
+					v.sp = sp
 					return
 				}
 				if lowIdx < 0 {
@@ -604,42 +671,50 @@ func (v *VM) run() {
 				v.allocs--
 				if v.allocs == 0 {
 					v.err = ErrObjectAllocLimit
+					v.ip = ip
+					v.sp = sp
 					return
 				}
-				v.stack[v.sp] = val
-				v.sp++
+				v.stack[sp] = val
+				sp++
 			default:
 				v.err = fmt.Errorf("not indexable: %s", left.TypeName())
+				v.ip = ip
+				v.sp = sp
 				return
 			}
 		case parser.OpCall:
-			numArgs := int(v.curInsts[v.ip+1])
-			spread := int(v.curInsts[v.ip+2])
-			v.ip += 2
+			numArgs := int(curInsts[ip+1])
+			spread := int(curInsts[ip+2])
+			ip += 2
 
-			value := v.stack[v.sp-1-numArgs]
+			value := v.stack[sp-1-numArgs]
 			if !value.CanCall() {
 				v.err = fmt.Errorf("not callable: %s", value.TypeName())
+				v.ip = ip
+				v.sp = sp
 				return
 			}
 
 			if spread == 1 {
-				v.sp--
-				switch arr := v.stack[v.sp].(type) {
+				sp--
+				switch arr := v.stack[sp].(type) {
 				case *Array:
 					for _, item := range arr.Value {
-						v.stack[v.sp] = item
-						v.sp++
+						v.stack[sp] = item
+						sp++
 					}
 					numArgs += len(arr.Value) - 1
 				case *ImmutableArray:
 					for _, item := range arr.Value {
-						v.stack[v.sp] = item
-						v.sp++
+						v.stack[sp] = item
+						sp++
 					}
 					numArgs += len(arr.Value) - 1
 				default:
 					v.err = fmt.Errorf("not an array: %s", arr.TypeName())
+					v.ip = ip
+					v.sp = sp
 					return
 				}
 			}
@@ -653,12 +728,12 @@ func (v *VM) run() {
 					if varArgs >= 0 {
 						numArgs = realArgs + 1
 						args := make([]Object, varArgs)
-						spStart := v.sp - varArgs
-						for i := spStart; i < v.sp; i++ {
+						spStart := sp - varArgs
+						for i := spStart; i < sp; i++ {
 							args[i-spStart] = v.stack[i]
 						}
 						v.stack[spStart] = &Array{Value: args}
-						v.sp = spStart + 1
+						sp = spStart + 1
 					}
 				}
 				if numArgs != callee.NumParameters {
@@ -671,39 +746,44 @@ func (v *VM) run() {
 							"wrong number of arguments: want=%d, got=%d",
 							callee.NumParameters, numArgs)
 					}
+					v.ip = ip
+					v.sp = sp
 					return
 				}
 
 				// test if it's tail-call
 				if callee == v.curFrame.fn { // recursion
-					nextOp := v.curInsts[v.ip+1]
+					nextOp := curInsts[ip+1]
 					if nextOp == parser.OpReturn ||
 						(nextOp == parser.OpPop &&
-							parser.OpReturn == v.curInsts[v.ip+2]) {
+							parser.OpReturn == curInsts[ip+2]) {
 						for p := 0; p < numArgs; p++ {
 							v.stack[v.curFrame.basePointer+p] =
-								v.stack[v.sp-numArgs+p]
+								v.stack[sp-numArgs+p]
 						}
-						v.sp -= numArgs + 1
-						v.ip = -1 // reset IP to beginning of the frame
+						sp -= numArgs + 1
+						ip = -1 // reset IP to beginning of the frame
 						continue
 					}
 				}
 				if v.framesIndex >= MaxFrames {
 					v.err = ErrStackOverflow
+					v.ip = ip
+					v.sp = sp
 					return
 				}
 
-				// update call frame
-				v.curFrame.ip = v.ip // store current ip before call
+				// update call frame — flush ip/sp into current frame first
+				v.curFrame.ip = ip
 				v.curFrame = &(v.frames[v.framesIndex])
 				v.curFrame.fn = callee
 				v.curFrame.freeVars = callee.Free
-				v.curFrame.basePointer = v.sp - numArgs
-				v.curInsts = callee.Instructions
-				v.ip = -1
+				v.curFrame.basePointer = sp - numArgs
 				v.framesIndex++
-				v.sp = v.sp - numArgs + callee.NumLocals
+				sp = sp - numArgs + callee.NumLocals
+				// reload locals from new frame
+				ip = -1
+				curInsts = callee.Instructions
 				if v.hookMask&HookMaskCall != 0 {
 					v.hookFunc(v, HookInfo{
 						Event: HookCall,
@@ -713,14 +793,16 @@ func (v *VM) run() {
 				}
 			} else if callee, ok := value.(*InteropFunction); ok {
 				var args []Object
-				args = append(args, v.stack[v.sp-numArgs:v.sp]...)
+				args = append(args, v.stack[sp-numArgs:sp]...)
 				ret, e := callee.Value(v, args...)
-				v.sp -= numArgs + 1
+				sp -= numArgs + 1
 				if e != nil {
 					if e == ErrWrongNumArguments {
 						v.err = fmt.Errorf(
 							"wrong number of arguments in call to '%s'",
 							value.TypeName())
+						v.ip = ip
+						v.sp = sp
 						return
 					}
 					if e, ok := e.(ErrInvalidArgumentType); ok {
@@ -728,9 +810,13 @@ func (v *VM) run() {
 							"invalid type for argument '%s' in call to '%s': "+
 								"expected %s, found %s",
 							e.Name, value.TypeName(), e.Expected, e.Found)
+						v.ip = ip
+						v.sp = sp
 						return
 					}
 					v.err = e
+					v.ip = ip
+					v.sp = sp
 					return
 				}
 				if ret == nil {
@@ -739,15 +825,17 @@ func (v *VM) run() {
 				v.allocs--
 				if v.allocs == 0 {
 					v.err = ErrObjectAllocLimit
+					v.ip = ip
+					v.sp = sp
 					return
 				}
-				v.stack[v.sp] = ret
-				v.sp++
+				v.stack[sp] = ret
+				sp++
 			} else {
 				var args []Object
-				args = append(args, v.stack[v.sp-numArgs:v.sp]...)
+				args = append(args, v.stack[sp-numArgs:sp]...)
 				ret, e := value.Call(args...)
-				v.sp -= numArgs + 1
+				sp -= numArgs + 1
 
 				// runtime error
 				if e != nil {
@@ -755,6 +843,8 @@ func (v *VM) run() {
 						v.err = fmt.Errorf(
 							"wrong number of arguments in call to '%s'",
 							value.TypeName())
+						v.ip = ip
+						v.sp = sp
 						return
 					}
 					if e, ok := e.(ErrInvalidArgumentType); ok {
@@ -762,9 +852,13 @@ func (v *VM) run() {
 							"invalid type for argument '%s' in call to '%s': "+
 								"expected %s, found %s",
 							e.Name, value.TypeName(), e.Expected, e.Found)
+						v.ip = ip
+						v.sp = sp
 						return
 					}
 					v.err = e
+					v.ip = ip
+					v.sp = sp
 					return
 				}
 
@@ -775,24 +869,26 @@ func (v *VM) run() {
 				v.allocs--
 				if v.allocs == 0 {
 					v.err = ErrObjectAllocLimit
+					v.ip = ip
+					v.sp = sp
 					return
 				}
-				v.stack[v.sp] = ret
-				v.sp++
+				v.stack[sp] = ret
+				sp++
 			}
 		case parser.OpReturn:
-			v.ip++
-			n := int(v.curInsts[v.ip])
+			ip++
+			n := int(curInsts[ip])
 			var retVal Object
 			switch n {
 			case 0:
 				retVal = UndefinedValue
 			case 1:
-				retVal = v.stack[v.sp-1]
+				retVal = v.stack[sp-1]
 			default:
 				vals := make([]Object, n)
 				for i := 0; i < n; i++ {
-					vals[i] = v.stack[v.sp-n+i]
+					vals[i] = v.stack[sp-n+i]
 				}
 				retVal = &MultiValue{Values: vals}
 			}
@@ -800,123 +896,130 @@ func (v *VM) run() {
 				v.hookFunc(v, HookInfo{
 					Event:  HookReturn,
 					Depth:  v.framesIndex,
-					Pos:    v.fileSet.Position(v.curFrame.fn.SourcePos(v.ip)),
+					Pos:    v.fileSet.Position(v.curFrame.fn.SourcePos(ip)),
 					RetVal: retVal,
 				})
 			}
 			v.framesIndex--
 			v.curFrame = &v.frames[v.framesIndex-1]
-			v.curInsts = v.curFrame.fn.Instructions
-			v.ip = v.curFrame.ip
-			v.sp = v.frames[v.framesIndex].basePointer
+			// reload locals from the returning frame
+			curInsts = v.curFrame.fn.Instructions
+			ip = v.curFrame.ip
+			sp = v.frames[v.framesIndex].basePointer
 			// skip stack overflow check because (newSP) <= (oldSP)
-			v.stack[v.sp-1] = retVal
+			v.stack[sp-1] = retVal
 			if v.resumeDepth != 0 && v.framesIndex == v.resumeDepth {
+				v.ip = ip
+				v.sp = sp
 				return
 			}
 			//v.sp++
 		case parser.OpUnpack:
-			v.ip++
-			n := int(v.curInsts[v.ip])
-			val := v.stack[v.sp-1]
-			v.sp--
+			ip++
+			n := int(curInsts[ip])
+			val := v.stack[sp-1]
+			sp--
 			if mv, ok := val.(*MultiValue); ok {
 				for i := 0; i < n; i++ {
 					if i < len(mv.Values) {
-						v.stack[v.sp] = mv.Values[i]
+						v.stack[sp] = mv.Values[i]
 					} else {
-						v.stack[v.sp] = UndefinedValue
+						v.stack[sp] = UndefinedValue
 					}
-					v.sp++
+					sp++
 				}
 			} else {
-				v.stack[v.sp] = val
-				v.sp++
+				v.stack[sp] = val
+				sp++
 				for i := 1; i < n; i++ {
-					v.stack[v.sp] = UndefinedValue
-					v.sp++
+					v.stack[sp] = UndefinedValue
+					sp++
 				}
 			}
 		case parser.OpDefineLocal:
-			v.ip++
-			localIndex := int(v.curInsts[v.ip])
-			sp := v.curFrame.basePointer + localIndex
+			ip++
+			localIndex := int(curInsts[ip])
+			lsp := v.curFrame.basePointer + localIndex
 
 			// local variables can be mutated by other actions
 			// so always store the copy of popped value
-			val := unwrapMultiValue(v.stack[v.sp-1])
-			v.sp--
-			v.stack[sp] = val
+			val := unwrapMultiValue(v.stack[sp-1])
+			sp--
+			v.stack[lsp] = val
 		case parser.OpSetLocal:
-			localIndex := int(v.curInsts[v.ip+1])
-			v.ip++
-			sp := v.curFrame.basePointer + localIndex
+			localIndex := int(curInsts[ip+1])
+			ip++
+			lsp := v.curFrame.basePointer + localIndex
 
-			// update pointee of v.stack[sp] instead of replacing the pointer
+			// update pointee of v.stack[lsp] instead of replacing the pointer
 			// itself. this is needed because there can be free variables
 			// referencing the same local variables.
-			val := unwrapMultiValue(v.stack[v.sp-1])
-			v.sp--
-			if obj, ok := v.stack[sp].(*ObjectPtr); ok {
+			val := unwrapMultiValue(v.stack[sp-1])
+			sp--
+			if obj, ok := v.stack[lsp].(*ObjectPtr); ok {
 				*obj.Value = val
 				val = obj
 			}
-			v.stack[sp] = val // also use a copy of popped value
+			v.stack[lsp] = val // also use a copy of popped value
 		case parser.OpSetSelLocal:
-			localIndex := int(v.curInsts[v.ip+1])
-			numSelectors := int(v.curInsts[v.ip+2])
-			v.ip += 2
+			localIndex := int(curInsts[ip+1])
+			numSelectors := int(curInsts[ip+2])
+			ip += 2
 
 			// selectors and RHS value
 			selectors := make([]Object, numSelectors)
 			for i := 0; i < numSelectors; i++ {
-				selectors[i] = v.stack[v.sp-numSelectors+i]
+				selectors[i] = v.stack[sp-numSelectors+i]
 			}
-			val := v.stack[v.sp-numSelectors-1]
-			v.sp -= numSelectors + 1
+			val := v.stack[sp-numSelectors-1]
+			sp -= numSelectors + 1
 			dst := v.stack[v.curFrame.basePointer+localIndex]
 			if obj, ok := dst.(*ObjectPtr); ok {
 				dst = *obj.Value
 			}
 			if e := indexAssign(dst, val, selectors); e != nil {
 				v.err = e
+				v.ip = ip
+				v.sp = sp
 				return
 			}
 		case parser.OpGetLocal:
-			v.ip++
-			localIndex := int(v.curInsts[v.ip])
+			ip++
+			localIndex := int(curInsts[ip])
 			val := v.stack[v.curFrame.basePointer+localIndex]
 			if obj, ok := val.(*ObjectPtr); ok {
 				val = *obj.Value
 			}
-			v.stack[v.sp] = val
-			v.sp++
+			v.stack[sp] = val
+			sp++
 		case parser.OpGetBuiltin:
-			v.ip++
-			builtinIndex := int(v.curInsts[v.ip])
-			v.stack[v.sp] = builtinFuncs[builtinIndex]
-			v.sp++
+			ip++
+			builtinIndex := int(curInsts[ip])
+			v.stack[sp] = builtinFuncs[builtinIndex]
+			sp++
 		case parser.OpClosure:
-			v.ip += 3
-			constIndex := int(v.curInsts[v.ip-1]) | int(v.curInsts[v.ip-2])<<8
-			numFree := int(v.curInsts[v.ip])
+			ip += 3
+			constIndex := int(curInsts[ip-1]) | int(curInsts[ip-2])<<8
+			numFree := int(curInsts[ip])
 			fn, ok := v.constants[constIndex].(*CompiledFunction)
 			if !ok {
 				v.err = fmt.Errorf("not function: %s", fn.TypeName())
+				v.ip = ip
+				v.sp = sp
 				return
 			}
 			free := make([]*ObjectPtr, numFree)
 			for i := 0; i < numFree; i++ {
-				switch freeVar := (v.stack[v.sp-numFree+i]).(type) {
+				switch freeVar := (v.stack[sp-numFree+i]).(type) {
 				case *ObjectPtr:
 					free[i] = freeVar
 				default:
 					free[i] = &ObjectPtr{
-						Value: &v.stack[v.sp-numFree+i],
+						Value: &v.stack[sp-numFree+i],
 					}
 				}
 			}
-			v.sp -= numFree
+			sp -= numFree
 			cl := &CompiledFunction{
 				Instructions:  fn.Instructions,
 				NumLocals:     fn.NumLocals,
@@ -928,107 +1031,123 @@ func (v *VM) run() {
 			v.allocs--
 			if v.allocs == 0 {
 				v.err = ErrObjectAllocLimit
+				v.ip = ip
+				v.sp = sp
 				return
 			}
-			v.stack[v.sp] = cl
-			v.sp++
+			v.stack[sp] = cl
+			sp++
 		case parser.OpGetFreePtr:
-			v.ip++
-			freeIndex := int(v.curInsts[v.ip])
+			ip++
+			freeIndex := int(curInsts[ip])
 			val := v.curFrame.freeVars[freeIndex]
-			v.stack[v.sp] = val
-			v.sp++
+			v.stack[sp] = val
+			sp++
 		case parser.OpGetFree:
-			v.ip++
-			freeIndex := int(v.curInsts[v.ip])
+			ip++
+			freeIndex := int(curInsts[ip])
 			val := *v.curFrame.freeVars[freeIndex].Value
-			v.stack[v.sp] = val
-			v.sp++
+			v.stack[sp] = val
+			sp++
 		case parser.OpSetFree:
-			v.ip++
-			freeIndex := int(v.curInsts[v.ip])
-			*v.curFrame.freeVars[freeIndex].Value = unwrapMultiValue(v.stack[v.sp-1])
-			v.sp--
+			ip++
+			freeIndex := int(curInsts[ip])
+			*v.curFrame.freeVars[freeIndex].Value = unwrapMultiValue(v.stack[sp-1])
+			sp--
 		case parser.OpGetLocalPtr:
-			v.ip++
-			localIndex := int(v.curInsts[v.ip])
-			sp := v.curFrame.basePointer + localIndex
-			val := v.stack[sp]
+			ip++
+			localIndex := int(curInsts[ip])
+			lsp := v.curFrame.basePointer + localIndex
+			val := v.stack[lsp]
 			var freeVar *ObjectPtr
 			if obj, ok := val.(*ObjectPtr); ok {
 				freeVar = obj
 			} else {
 				freeVar = &ObjectPtr{Value: &val}
-				v.stack[sp] = freeVar
+				v.stack[lsp] = freeVar
 			}
-			v.stack[v.sp] = freeVar
-			v.sp++
+			v.stack[sp] = freeVar
+			sp++
 		case parser.OpSetSelFree:
-			v.ip += 2
-			freeIndex := int(v.curInsts[v.ip-1])
-			numSelectors := int(v.curInsts[v.ip])
+			ip += 2
+			freeIndex := int(curInsts[ip-1])
+			numSelectors := int(curInsts[ip])
 
 			// selectors and RHS value
 			selectors := make([]Object, numSelectors)
 			for i := 0; i < numSelectors; i++ {
-				selectors[i] = v.stack[v.sp-numSelectors+i]
+				selectors[i] = v.stack[sp-numSelectors+i]
 			}
-			val := v.stack[v.sp-numSelectors-1]
-			v.sp -= numSelectors + 1
+			val := v.stack[sp-numSelectors-1]
+			sp -= numSelectors + 1
 			e := indexAssign(*v.curFrame.freeVars[freeIndex].Value,
 				val, selectors)
 			if e != nil {
 				v.err = e
+				v.ip = ip
+				v.sp = sp
 				return
 			}
 		case parser.OpIteratorInit:
 			var iterator Object
-			dst := v.stack[v.sp-1]
-			v.sp--
+			dst := v.stack[sp-1]
+			sp--
 			if !dst.CanIterate() {
 				v.err = fmt.Errorf("not iterable: %s", dst.TypeName())
+				v.ip = ip
+				v.sp = sp
 				return
 			}
 			iterator = dst.Iterate()
 			v.allocs--
 			if v.allocs == 0 {
 				v.err = ErrObjectAllocLimit
+				v.ip = ip
+				v.sp = sp
 				return
 			}
-			v.stack[v.sp] = iterator
-			v.sp++
+			v.stack[sp] = iterator
+			sp++
 		case parser.OpIteratorNext:
-			iterator := v.stack[v.sp-1]
-			v.sp--
+			iterator := v.stack[sp-1]
+			sp--
 			hasMore := iterator.(Iterator).Next()
 			if hasMore {
-				v.stack[v.sp] = TrueValue
+				v.stack[sp] = TrueValue
 			} else {
-				v.stack[v.sp] = FalseValue
+				v.stack[sp] = FalseValue
 			}
-			v.sp++
+			sp++
 		case parser.OpIteratorKey:
-			iterator := v.stack[v.sp-1]
-			v.sp--
+			iterator := v.stack[sp-1]
+			sp--
 			val := iterator.(Iterator).Key()
-			v.stack[v.sp] = val
-			v.sp++
+			v.stack[sp] = val
+			sp++
 		case parser.OpIteratorValue:
-			iterator := v.stack[v.sp-1]
-			v.sp--
+			iterator := v.stack[sp-1]
+			sp--
 			val := iterator.(Iterator).Value()
-			v.stack[v.sp] = val
-			v.sp++
+			v.stack[sp] = val
+			sp++
 		case parser.OpSuspend:
+			v.ip = ip
+			v.sp = sp
+			v.curInsts = curInsts
 			return
 		case parser.OpDup:
-			v.stack[v.sp] = v.stack[v.sp-1]
-			v.sp++
+			v.stack[sp] = v.stack[sp-1]
+			sp++
 		default:
-			v.err = fmt.Errorf("unknown opcode: %d", v.curInsts[v.ip])
+			v.err = fmt.Errorf("unknown opcode: %d", curInsts[ip])
+			v.ip = ip
+			v.sp = sp
 			return
 		}
 	}
+	v.ip = ip
+	v.sp = sp
+	v.curInsts = curInsts
 }
 
 // RunCompiledFunction calls a CompiledFunction from within an InteropFunc,
