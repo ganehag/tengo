@@ -20,3 +20,5 @@
   encoding and decoding functions
 - [base64](https://github.com/d5/tengo/blob/master/docs/stdlib-base64.md):
   base64 encoding and decoding functions
+- [coro](stdlib-coro.md): coroutines — pauseable functions that preserve
+  local state across yields
