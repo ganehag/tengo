@@ -16,6 +16,12 @@ type frame struct {
 	basePointer int
 }
 
+// stopping bit-flags stored in VM.stopping (single atomic word).
+const (
+	stoppingAbort int64 = 1 // set by Abort()
+	stoppingPause int64 = 2 // set by Pause(), cleared by Resume() and Run()
+)
+
 // VM is a virtual machine that executes the bytecode compiled by Compiler.
 type VM struct {
 	constants   []Object
@@ -28,15 +34,14 @@ type VM struct {
 	curFrame    *frame
 	curInsts    []byte
 	ip          int
-	aborting     int64
-	pausing      int64 // atomic: set by Pause(), cleared by Resume() and Run()
-	maxAllocs    int64
-	allocs       int64
-	err          error
-	resumeDepth  int      // non-zero: run() stops when framesIndex drops to this value
-	hookFunc     HookFunc // nil when tracing is disabled
-	hookMask     HookMask // bitmask of enabled events
-	lastLine     int      // last seen source line, for HookLine dedup
+	stopping    int64 // atomic bit-field: stoppingAbort | stoppingPause
+	maxAllocs   int64
+	allocs      int64
+	err         error
+	resumeDepth int      // non-zero: run() stops when framesIndex drops to this value
+	hookFunc    HookFunc // nil when tracing is disabled
+	hookMask    HookMask // bitmask of enabled events
+	lastLine    int      // last seen source line, for HookLine dedup
 }
 
 // NewVM creates a VM.
@@ -66,7 +71,7 @@ func NewVM(
 
 // Abort aborts the execution. Safe to call from any goroutine.
 func (v *VM) Abort() {
-	atomic.StoreInt64(&v.aborting, 1)
+	atomic.StoreInt64(&v.stopping, stoppingAbort)
 }
 
 // SetHook installs a hook function that the VM calls at the events selected
@@ -80,12 +85,12 @@ func (v *VM) SetHook(fn HookFunc, mask HookMask) {
 // Pause suspends execution after the current instruction completes.
 // Safe to call from any goroutine. Call Resume to continue from the same point.
 func (v *VM) Pause() {
-	atomic.StoreInt64(&v.pausing, 1)
+	atomic.StoreInt64(&v.stopping, stoppingPause)
 }
 
 // IsPaused reports whether the VM is currently paused.
 func (v *VM) IsPaused() bool {
-	return atomic.LoadInt64(&v.pausing) == 1
+	return atomic.LoadInt64(&v.stopping)&stoppingPause != 0
 }
 
 // Resume continues execution after a Pause. Must be called from the goroutine
@@ -93,7 +98,7 @@ func (v *VM) IsPaused() bool {
 // Returns nil when the script finishes normally; check IsPaused() to
 // distinguish a normal finish from another Pause.
 func (v *VM) Resume() error {
-	atomic.StoreInt64(&v.pausing, 0)
+	atomic.StoreInt64(&v.stopping, 0)
 	v.run()
 	err := v.err
 	if err != nil {
@@ -121,10 +126,9 @@ func (v *VM) Run() (err error) {
 	v.framesIndex = 1
 	v.ip = -1
 	v.allocs = v.maxAllocs + 1
-	atomic.StoreInt64(&v.pausing, 0)
+	atomic.StoreInt64(&v.stopping, 0)
 
 	v.run()
-	atomic.StoreInt64(&v.aborting, 0)
 	err = v.err
 	if err != nil {
 		filePos := v.fileSet.Position(
@@ -151,7 +155,7 @@ func (v *VM) run() {
 	sp := v.sp
 	curInsts := v.curInsts
 
-	for atomic.LoadInt64(&v.aborting) == 0 && atomic.LoadInt64(&v.pausing) == 0 {
+	for atomic.LoadInt64(&v.stopping) == 0 {
 		ip++
 
 		if v.hookMask&HookMaskLine != 0 {
