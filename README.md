@@ -4,7 +4,11 @@
 ![test](https://github.com/tengolang/tengo/workflows/test/badge.svg)
 [![Go Report Card](https://goreportcard.com/badge/github.com/tengolang/tengo)](https://goreportcard.com/report/github.com/tengolang/tengo)
 
-**Tengo is a small, dynamic, fast, secure script language for Go.** 
+**Tengo is a small, dynamic, fast, secure script language for Go.**
+
+This is a fork of [d5/tengo](https://github.com/d5/tengo), kept alive with new
+features and bug fixes. Full credit to d5 for the language design and original
+implementation.
 
 Tengo is **[fast](#benchmark)** and secure because it's compiled/executed as
 bytecode on stack-based VM that's written in native Go.
