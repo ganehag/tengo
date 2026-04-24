@@ -127,7 +127,10 @@ var languages = []langEntry{
 		name: "Lua", typ: "Lua (Native)", binary: "lua", ext: "lua",
 	},
 	{
-		name: "Python", typ: "Python (Native)", binary: "python3", ext: "py",
+		name: "Python", typ: "Python 2 (Native)", binary: "python2.7", ext: "py",
+	},
+	{
+		name: "Python", typ: "Python 3 (Native)", binary: "python3", ext: "py",
 	},
 }
 
