@@ -45,7 +45,6 @@ type fmtFlags struct {
 	// different, flagless formats set at the top level.
 	plusV  bool
 	sharpV bool
-
 }
 
 // A formatter is the raw formatter used by Printf etc.

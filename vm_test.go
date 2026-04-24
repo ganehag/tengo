@@ -4412,8 +4412,8 @@ for i := 0; i < 1000000; i++ {
 	done := make(chan error, 1)
 	go func() { done <- vm.Run() }()
 
-	<-running    // VM is inside ping(), blocked on pauseSet
-	vm.Pause()   // set flag while VM is still inside the InteropFunction
+	<-running       // VM is inside ping(), blocked on pauseSet
+	vm.Pause()      // set flag while VM is still inside the InteropFunction
 	close(pauseSet) // release ping(); run() loop will see pausing=1 immediately
 
 	err = <-done

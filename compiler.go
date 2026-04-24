@@ -660,8 +660,8 @@ func (c *Compiler) SetImportDir(dir string) {
 //
 // Use this method if you want other source file extension than ".tengo".
 //
-//     // this will search for *.tengo, *.foo, *.bar
-//     err := c.SetImportFileExt(".tengo", ".foo", ".bar")
+//	// this will search for *.tengo, *.foo, *.bar
+//	err := c.SetImportFileExt(".tengo", ".foo", ".bar")
 //
 // This function requires at least one argument, since it will replace the
 // current list of extension name.
@@ -1219,7 +1219,6 @@ func (c *Compiler) leaveLoop() {
 	c.loopIndex--
 }
 
-
 // currentBreakTarget returns the innermost loop or switch context.
 func (c *Compiler) currentBreakTarget() *loop {
 	if c.loopIndex >= 0 {
@@ -1288,8 +1287,8 @@ func (c *Compiler) compileSwitchStmt(node *parser.SwitchStmt) error {
 	c.loops = append(c.loops, swCtx)
 	c.loopIndex++
 
-	var exitJumps []int         // all jumps to the post-switch position
-	var pendingFTs []int        // fallthrough jumps from the previous case
+	var exitJumps []int  // all jumps to the post-switch position
+	var pendingFTs []int // fallthrough jumps from the previous case
 
 	for i, clause := range clauses {
 		isDefault := clause.List == nil

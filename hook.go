@@ -20,8 +20,8 @@ type HookMask int
 // Combine with bitwise OR: HookMaskCall | HookMaskLine.
 const (
 	HookMaskCall   HookMask = 1 << iota // HookMaskCall enables HookCall events
-	HookMaskReturn                       // HookMaskReturn enables HookReturn events
-	HookMaskLine                         // HookMaskLine enables HookLine events
+	HookMaskReturn                      // HookMaskReturn enables HookReturn events
+	HookMaskLine                        // HookMaskLine enables HookLine events
 )
 
 // HookInfo carries the context for a single hook invocation.

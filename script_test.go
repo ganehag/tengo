@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"unicode"
 	"testing"
 	"time"
+	"unicode"
 
 	"github.com/tengolang/tengo/v3"
 	"github.com/tengolang/tengo/v3/require"

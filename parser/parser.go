@@ -300,10 +300,7 @@ func (p *Parser) expectComma(closing token.Token, want string) bool {
 	if p.token == token.Comma {
 		p.next()
 
-		if p.token == closing {
-			return false
-		}
-		return true
+		return p.token != closing
 	}
 
 	if p.token == token.Semicolon && p.tokenLit == "\n" {

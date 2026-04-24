@@ -513,12 +513,12 @@ func TestCompiler_Compile(t *testing.T) {
 				intObject(2),
 				intObject(4),
 				compiledFunction(0, 0,
-					tengo.MakeInstruction(parser.OpConstant, 0), // 0000
-					tengo.MakeInstruction(parser.OpPop),         // 0003
-					tengo.MakeInstruction(parser.OpConstant, 1), // 0004
-					tengo.MakeInstruction(parser.OpPop),         // 0007
-					tengo.MakeInstruction(parser.OpConstant, 2), // 0008
-					tengo.MakeInstruction(parser.OpPop),         // 0011
+					tengo.MakeInstruction(parser.OpConstant, 0),  // 0000
+					tengo.MakeInstruction(parser.OpPop),          // 0003
+					tengo.MakeInstruction(parser.OpConstant, 1),  // 0004
+					tengo.MakeInstruction(parser.OpPop),          // 0007
+					tengo.MakeInstruction(parser.OpConstant, 2),  // 0008
+					tengo.MakeInstruction(parser.OpPop),          // 0011
 					tengo.MakeInstruction(parser.OpReturn, 0))))) // 0012
 
 	expectCompile(t, `func() { }`,
