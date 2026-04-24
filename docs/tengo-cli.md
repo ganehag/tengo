@@ -8,11 +8,11 @@ compiled and executed as native binary using `tengo` CLI tool.
 To install `tengo` tool, run:
 
 ```bash
-go get github.com/d5/tengo/cmd/tengo
+go install github.com/tengolang/tengo/v3/cmd/tengo@latest
 ```
 
 Or, you can download the precompiled binaries from
-[here](https://github.com/d5/tengo/releases/latest).
+[here](https://github.com/tengolang/tengo/releases/latest).
 
 ## Compiling and Executing Tengo Code
 

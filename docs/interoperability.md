@@ -30,7 +30,7 @@ The following is an example where a Tengo script is compiled and run with no
 input/output variables.
 
 ```golang
-import "github.com/d5/tengo/v2"
+import "github.com/tengolang/tengo/v3"
 
 var code = `
 reduce := func(seq, fn) {
@@ -58,7 +58,7 @@ output variable is accessed through
 import (
     "fmt"
 
-    "github.com/d5/tengo/v2"
+    "github.com/tengolang/tengo/v3"
 )
 
 func main() {
@@ -122,7 +122,7 @@ global scope regardless of what the script defines.
 import (
     "fmt"
 
-    "github.com/ganehag/tengo/v3"
+    "github.com/tengolang/tengo/v3"
 )
 
 const (
@@ -523,7 +523,7 @@ if err := vm.Resume(); err != nil {
 import (
     "fmt"
 
-    "github.com/ganehag/tengo/v3"
+    "github.com/tengolang/tengo/v3"
 )
 
 func main() {
