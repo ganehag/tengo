@@ -1,143 +1,121 @@
 package main
 
 import (
+	"flag"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/tengolang/tengo/v3"
 	"github.com/tengolang/tengo/v3/parser"
 )
 
-func main() {
-	runFib(35)
-	runFibTC1(35)
-	runFibTC2(35)
+type benchmark struct {
+	name   string
+	src    func(n int) string
+	native func(n int) int
 }
 
-func runFib(n int) {
-	start := time.Now()
-	nativeResult := fib(n)
-	nativeTime := time.Since(start)
-
-	input := `
+var benchmarks = []benchmark{
+	{
+		name: "fib",
+		src: func(n int) string {
+			return fmt.Sprintf(`
 fib := func(x) {
-	if x == 0 {
-		return 0
-	} else if x == 1 {
-		return 1
-	}
-
+	if x == 0 { return 0 } else if x == 1 { return 1 }
 	return fib(x-1) + fib(x-2)
 }
-` + fmt.Sprintf("out = fib(%d)", n)
-
-	parseTime, compileTime, runTime, result, err := runBench([]byte(input))
-	if err != nil {
-		panic(err)
-	}
-
-	if nativeResult != int(result.(tengo.Int).Value) {
-		panic(fmt.Errorf("wrong result: %d != %d", nativeResult,
-			int(result.(tengo.Int).Value)))
-	}
-
-	fmt.Println("-------------------------------------")
-	fmt.Printf("fibonacci(%d)\n", n)
-	fmt.Println("-------------------------------------")
-	fmt.Printf("Result:  %d\n", nativeResult)
-	fmt.Printf("Go:      %s\n", nativeTime)
-	fmt.Printf("Parser:  %s\n", parseTime)
-	fmt.Printf("Compile: %s\n", compileTime)
-	fmt.Printf("VM:      %s\n", runTime)
-}
-
-func runFibTC1(n int) {
-	start := time.Now()
-	nativeResult := fibTC1(n, 0)
-	nativeTime := time.Since(start)
-
-	input := `
+out = fib(%d)`, n)
+		},
+		native: func(n int) int { return fib(n) },
+	},
+	{
+		name: "fibt1",
+		src: func(n int) string {
+			return fmt.Sprintf(`
 fib := func(x, s) {
-	if x == 0 {
-		return 0 + s
-	} else if x == 1 {
-		return 1 + s
-	}
-
+	if x == 0 { return 0 + s } else if x == 1 { return 1 + s }
 	return fib(x-1, fib(x-2, s))
 }
-` + fmt.Sprintf("out = fib(%d, 0)", n)
-
-	parseTime, compileTime, runTime, result, err := runBench([]byte(input))
-	if err != nil {
-		panic(err)
-	}
-
-	if nativeResult != int(result.(tengo.Int).Value) {
-		panic(fmt.Errorf("wrong result: %d != %d", nativeResult,
-			int(result.(tengo.Int).Value)))
-	}
-
-	fmt.Println("-------------------------------------")
-	fmt.Printf("fibonacci(%d) (tail-call #1)\n", n)
-	fmt.Println("-------------------------------------")
-	fmt.Printf("Result:  %d\n", nativeResult)
-	fmt.Printf("Go:      %s\n", nativeTime)
-	fmt.Printf("Parser:  %s\n", parseTime)
-	fmt.Printf("Compile: %s\n", compileTime)
-	fmt.Printf("VM:      %s\n", runTime)
-}
-
-func runFibTC2(n int) {
-	start := time.Now()
-	nativeResult := fibTC2(n, 0, 1)
-	nativeTime := time.Since(start)
-
-	input := `
+out = fib(%d, 0)`, n)
+		},
+		native: func(n int) int { return fibTC1(n, 0) },
+	},
+	{
+		name: "fibt2",
+		src: func(n int) string {
+			return fmt.Sprintf(`
 fib := func(x, a, b) {
-	if x == 0 {
-		return a
-	} else if x == 1 {
-		return b
-	}
-
+	if x == 0 { return a } else if x == 1 { return b }
 	return fib(x-1, b, a+b)
 }
-` + fmt.Sprintf("out = fib(%d, 0, 1)", n)
+out = fib(%d, 0, 1)`, n)
+		},
+		native: func(n int) int { return fibTC2(n, 0, 1) },
+	},
+}
 
-	parseTime, compileTime, runTime, result, err := runBench([]byte(input))
-	if err != nil {
-		panic(err)
+func main() {
+	n := flag.Int("n", 35, "fibonacci input")
+	count := flag.Int("count", 3, "number of runs (minimum is reported)")
+	flag.Parse()
+
+	for _, b := range benchmarks {
+		run(b, *n, *count)
+	}
+}
+
+func run(b benchmark, n, count int) {
+	goMin := time.Duration(math.MaxInt64)
+	for i := 0; i < count; i++ {
+		start := time.Now()
+		b.native(n)
+		if d := time.Since(start); d < goMin {
+			goMin = d
+		}
+	}
+	expected := b.native(n)
+
+	src := []byte(b.src(n))
+
+	parseMin := time.Duration(math.MaxInt64)
+	compileMin := time.Duration(math.MaxInt64)
+	vmMin := time.Duration(math.MaxInt64)
+
+	for i := 0; i < count; i++ {
+		pt, ct, vt, result, err := runBench(src)
+		if err != nil {
+			panic(fmt.Errorf("%s: %w", b.name, err))
+		}
+		if got := int(result.(tengo.Int).Value); got != expected {
+			panic(fmt.Errorf("%s: wrong result %d != %d", b.name, got, expected))
+		}
+		if pt < parseMin {
+			parseMin = pt
+		}
+		if ct < compileMin {
+			compileMin = ct
+		}
+		if vt < vmMin {
+			vmMin = vt
+		}
 	}
 
-	if nativeResult != int(result.(tengo.Int).Value) {
-		panic(fmt.Errorf("wrong result: %d != %d", nativeResult,
-			int(result.(tengo.Int).Value)))
-	}
-
-	fmt.Println("-------------------------------------")
-	fmt.Printf("fibonacci(%d) (tail-call #2)\n", n)
-	fmt.Println("-------------------------------------")
-	fmt.Printf("Result:  %d\n", nativeResult)
-	fmt.Printf("Go:      %s\n", nativeTime)
-	fmt.Printf("Parser:  %s\n", parseTime)
-	fmt.Printf("Compile: %s\n", compileTime)
-	fmt.Printf("VM:      %s\n", runTime)
+	ratio := float64(vmMin) / float64(goMin)
+	fmt.Printf("%-8s  n=%-3d  result=%-10d  go=%s  parse=%s  compile=%s  vm=%s  ratio=%.1fx\n",
+		b.name, n, expected, goMin, parseMin, compileMin, vmMin, ratio)
 }
 
 func fib(n int) int {
-	if n == 0 {
-		return 0
-	} else if n == 1 {
-		return 1
-	} else {
-		return fib(n-1) + fib(n-2)
+	if n <= 1 {
+		return n
 	}
+	return fib(n-1) + fib(n-2)
 }
 
 func fibTC1(n, s int) int {
 	if n == 0 {
-		return 0 + s
+		return s
 	} else if n == 1 {
 		return 1 + s
 	}
@@ -149,80 +127,46 @@ func fibTC2(n, a, b int) int {
 		return a
 	} else if n == 1 {
 		return b
-	} else {
-		return fibTC2(n-1, b, a+b)
 	}
+	return fibTC2(n-1, b, a+b)
 }
 
-func runBench(
-	input []byte,
-) (
-	parseTime time.Duration,
-	compileTime time.Duration,
-	runTime time.Duration,
-	result tengo.Object,
-	err error,
-) {
-	var astFile *parser.File
-	parseTime, astFile, err = parse(input)
-	if err != nil {
-		return
-	}
-
-	var bytecode *tengo.Bytecode
-	compileTime, bytecode, err = compileFile(astFile)
-	if err != nil {
-		return
-	}
-
-	runTime, result, err = runVM(bytecode)
-
-	return
-}
-
-func parse(input []byte) (time.Duration, *parser.File, error) {
+func runBench(src []byte) (parseTime, compileTime, runTime time.Duration, result tengo.Object, err error) {
 	fileSet := parser.NewFileSet()
-	inputFile := fileSet.AddFile("bench", -1, len(input))
+	inputFile := fileSet.AddFile("bench", -1, len(src))
 
 	start := time.Now()
-
-	p := parser.NewParser(inputFile, input, nil)
-	file, err := p.ParseFile()
-	if err != nil {
-		return time.Since(start), nil, err
+	p := parser.NewParser(inputFile, src, nil)
+	file, ferr := p.ParseFile()
+	parseTime = time.Since(start)
+	if ferr != nil {
+		err = ferr
+		return
 	}
 
-	return time.Since(start), file, nil
-}
-
-func compileFile(file *parser.File) (time.Duration, *tengo.Bytecode, error) {
 	symTable := tengo.NewSymbolTable()
 	symTable.Define("out")
 
-	start := time.Now()
-
+	start = time.Now()
 	c := tengo.NewCompiler(file.InputFile, symTable, nil, nil, nil)
-	if err := c.Compile(file); err != nil {
-		return time.Since(start), nil, err
+	if cerr := c.Compile(file); cerr != nil {
+		compileTime = time.Since(start)
+		err = cerr
+		return
 	}
-
 	bytecode := c.Bytecode()
 	bytecode.RemoveDuplicates()
+	compileTime = time.Since(start)
 
-	return time.Since(start), bytecode, nil
-}
-
-func runVM(
-	bytecode *tengo.Bytecode,
-) (time.Duration, tengo.Object, error) {
 	globals := make([]tengo.Object, tengo.GlobalsSize)
-
-	start := time.Now()
-
+	start = time.Now()
 	v := tengo.NewVM(bytecode, globals, -1)
-	if err := v.Run(); err != nil {
-		return time.Since(start), nil, err
+	if rerr := v.Run(); rerr != nil {
+		runTime = time.Since(start)
+		err = rerr
+		return
 	}
-
-	return time.Since(start), globals[0], nil
+	runTime = time.Since(start)
+	result = globals[0]
+	return
 }
